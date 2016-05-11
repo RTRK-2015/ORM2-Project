@@ -14,8 +14,15 @@ pcap_t* select_device(pcap_if_t *devs)
 
 		size_t i = 0;
 		for (pcap_if_t *walker = devs; walker; walker = walker->next, ++i)
-			cout << "[" << i << "] " << walker->name << " (" << walker->description << ")" << endl;
-	
+		{
+			cout << "[" << i << "] " << walker->name;
+
+			if (walker->description != nullptr)
+				cout << "(" << walker->description << ")";
+
+			cout << endl;
+		}
+
 		size_t pick = -1;
 		while (pick > i - 1)
 		{
