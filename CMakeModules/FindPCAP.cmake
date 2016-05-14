@@ -4,21 +4,21 @@ IF (WIN32)
 	FIND_PATH(PCAP_INCLUDE_DIR
 		NAMES "pcap.h"
 		PATHS "${CMAKE_SOURCE_DIR}/WinPcap/include")
-	
+
 	FIND_LIBRARY(PCAP_LIB1
 		NAMES "Packet"
 		PATHS "${CMAKE_SOURCE_DIR}/WinPcap/lib")
-	
+
 	FIND_LIBRARY(PCAP_LIB2
 		NAMES "wpcap"
 		PATHS "${CMAKE_SOURCE_DIR}/WinPcap/lib")
-		
+
 	SET(PCAP_LIBRARY "${PCAP_LIB1}" "${PCAP_LIB2}")
 ELSE()
 	FIND_PATH(PCAP_INCLUDE_DIR
 		NAMES "pcap.h"
 		PATHS "/usr/include/pcap" "/usr/local/include/pcap")
-		
+
 	FIND_LIBRARY(PCAP_LIBRARY
 		NAMES "pcap"
 		PATHS "/usr/lib" "/lib" "/usr/local/lib")
