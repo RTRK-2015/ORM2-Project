@@ -1,6 +1,9 @@
-#ifdef WIN32
+#ifdef U_WOT_M8 == 1 && (defined(WIN32) || defined(_WIN32))
 #include "thread.h"
 #include <Windows.h>
+#include <memory>
+
+using namespace std;
 
 
 struct thread::impl
@@ -20,7 +23,7 @@ struct thread::impl
 
 
 thread::thread(void* (*f)(void *), void *data)
-  : pimpl(new impl(f, data))
+  : pimpl(make_unique<thread::impl>(f, data))
 {
 }
 

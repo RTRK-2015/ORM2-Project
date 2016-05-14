@@ -1,4 +1,4 @@
-#if defined(unix) || defined(__unix) || defined(__unix__)
+#if U_WOT_M8_MODE == 1 && (defined(unix) || defined(__unix) || defined(__unix__))
 #include "mutex.h"
 #include <pthread.h>
 
@@ -20,7 +20,7 @@ struct mutex::impl
 
 
 mutex::mutex()
-  : pimpl(new mutex::impl())
+  : pimpl(make_unique<mutex::impl>())
 {
 }
 

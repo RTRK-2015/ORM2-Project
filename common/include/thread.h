@@ -2,6 +2,12 @@
 #define THREAD_H
 
 
+#include <configure.h>
+
+
+#if U_WOT_M8_MODE == 0
+#include <thread>
+#else
 #include <memory>
 
 
@@ -20,4 +26,5 @@ private:
 };
 
 
+#endif
 #endif
