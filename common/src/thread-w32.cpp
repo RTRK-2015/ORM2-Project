@@ -1,4 +1,6 @@
-#ifdef U_WOT_M8 == 1 && (defined(WIN32) || defined(_WIN32))
+#include "thread.h"
+
+#ifdef U_WOT_M8_MODE == 1 && (defined(WIN32) || defined(_WIN32))
 #include "thread.h"
 #include <Windows.h>
 #include <memory>
@@ -23,7 +25,7 @@ struct thread::impl
 
 
 thread::thread(void* (*f)(void *), void *data)
-  : pimpl(make_unique<thread::impl>(f, data))
+  : pimpl(new thread::impl(f, data))
 {
 }
 
@@ -35,7 +37,7 @@ thread::~thread()
 
 void thread::join()
 {
-  WaitForSingleObject(pimpl->th, 0);
+  WaitForSingleObject(pimpl->th, INFINITE);
 }
 
 

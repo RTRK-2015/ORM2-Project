@@ -1,3 +1,6 @@
+#include "mutex.h"
+#include <iostream>
+
 #if U_WOT_M8_MODE == 1 && (defined(WIN32) || defined(_WIN32))
 #include "mutex.h"
 #define WIN32_LEAN_AND_MEAN
@@ -9,22 +12,22 @@ using namespace std;
 
 struct mutex::impl
 {
-  HANDLE m;
+  HANDLE h;
 
   impl()
   {
-    m = CreateMutex(nullptr, FALSE, nullptr);
+	h = CreateMutex(nullptr, FALSE, nullptr);
   }
 
   ~impl()
   {
-    CloseHandle(m);
+    CloseHandle(h);
   }
 };
 
 
 mutex::mutex()
-  : pimpl(make_unique<mutex::impl>())
+  : pimpl(new mutex::impl())
 {
 
 }
@@ -37,13 +40,13 @@ mutex::~mutex()
 
 void mutex::lock()
 {
-  WaitForSingleObject(pimpl->m, 0);
+	while (WaitForSingleObject(pimpl->h, INFINITE) != 0);
 }
 
 
 void mutex::unlock()
 {
-  ReleaseMutex(pimpl->m);
+	ReleaseMutex(pimpl->h);
 }
 
 

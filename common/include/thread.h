@@ -4,7 +4,6 @@
 
 #include <configure.h>
 
-
 #if U_WOT_M8_MODE == 0
 #include <thread>
 #else
