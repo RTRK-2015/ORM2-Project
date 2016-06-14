@@ -12,7 +12,7 @@
 using namespace std;
 
 
-enum SendState : char
+enum SendState
 {
 	UNSENT = 0,
 	SENT,

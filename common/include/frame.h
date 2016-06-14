@@ -5,12 +5,13 @@
 #include <pcap.h>
 
 
+#pragma pack(1)
 struct ip_address
 {
 	std::uint8_t bytes[4];
 };
 
-
+#pragma pack(1)
 struct eth_header
 {
 	std::uint8_t dstmac[6];
@@ -18,7 +19,7 @@ struct eth_header
 	std::uint16_t type;
 };
 
-
+#pragma pack(1)
 struct ip_header
 {
 	std::uint8_t ver_ihl;
@@ -34,7 +35,7 @@ struct ip_header
 	std::uint32_t op_pad;
 };
 
-
+#pragma pack(1)
 struct udp_header
 {
 	std::uint16_t srcport;
@@ -43,7 +44,7 @@ struct udp_header
 	std::uint16_t crc;
 };
 
-
+#pragma pack(1)
 struct data_t
 {
 	std::uint32_t no;
@@ -51,7 +52,7 @@ struct data_t
 	std::uint16_t crc;
 };
 
-
+#pragma pack(1)
 struct frame
 {
 	eth_header eth;

@@ -23,7 +23,7 @@ pcap_t* select_device(pcap_if_t *devs)
 			cout << endl;
 		}
 
-		size_t pick = -1;
+		size_t pick = (size_t)-1;
 		while (pick > i - 1)
 		{
 			cout << "Pick device [0 - " << i - 1 << "]: ";
