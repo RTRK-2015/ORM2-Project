@@ -6,67 +6,46 @@
 #include "select_device.h"
 #include "thread.h"
 #include "mutex.h"
+#include "helper.h"
+#include "frame.h"
 
 using namespace std;
 
 
 enum SendState : char
 {
-	UNSENT,
+	UNSENT = 0,
 	SENT,
 	CONFIRMED
 };
 
+struct Data
+{
+	pcap_t *handle;
+	const char *mac;
+	vector<SendState> state;
+};
+
 
 mutex m;
-vector<SendState> state;
+
 
 
 void* worker(void *handle)
 {
-	vector<size_t> indices;
-	size_t offset = 0;
+	Data data = *(Data*)handle;
 
-	while (true)
-	{
-		m.lock();
-		auto it = find(begin(state) + offset, end(state), UNSENT);
-
-		if (it == end(state))
-			break;
-
-		*it = SENT;
-		m.unlock();
-
-		indices.push_back(distance(begin(state), it));
-		offset = indices[indices.size() - 1];
-	}
-
-	cout << indices.size() << endl;
 	return nullptr;
 }
 
-
-std::streampos filesize(const char* filePath)
-{
-    std::streampos fsize = 0;
-    std::ifstream file(filePath, ios::binary);
-
-    fsize = file.tellg();
-    file.seekg(0, ios::end);
-    fsize = file.tellg() - fsize;
-
-    return fsize;
-}
 
 
 int main(int argc, char *argv[])
 {
 	char errbuf[PCAP_ERRBUF_SIZE];
 
-	ifstream file(argv[2], ios::binary);
-	auto size = filesize(argv[2]);
-	state.resize(size, UNSENT);
+	/*ifstream file(argv[1], ios::binary);
+	auto size = filesize(argv[1]);*/
 	
 	pcap_if_t *devs;
 	pcap_findalldevs(&devs, errbuf);
@@ -74,11 +53,30 @@ int main(int argc, char *argv[])
 	pcap_t *handle1 = select_device(devs);
 	pcap_t *handle2 = select_device(devs);
 
-	thread th1(worker, (void*)handle1);
-	thread th2(worker, (void*)handle2);
+	vector<Data> data;
+	vector<thread> threads;
+	vector<vector<SendState>> state;
 
-	th1.join();
-	th2.join();
+	data_t d;
+	d.crc = 0xB00B;
+	d.no = 0x55555555;
+	strcpy((char *)d.data, "Hello, fucktards");
 
-	int a = 3;
+	send_packet(handle1, "A0481C87B1E5", d);
+	/*for (int i = 2; i < argc; ++i)
+	{
+		state.push_back(vector<SendState>(size / 1024));
+
+		Data d1 = { handle1, argv[i], state[i - 2] };
+		data.push_back(d1);
+
+		Data d2 = { handle2, argv[i], state[i - 2] };
+		data.push_back(d2);
+
+		threads.push_back(thread(worker, (void*)&data[i]));
+		threads.push_back(thread(worker, (void*)&data[i + 1]));
+	}
+
+	for (auto it = threads.begin(); it != threads.end(); ++it)
+		it->join();*/
 }

@@ -31,7 +31,7 @@ pcap_t* select_device(pcap_if_t *devs)
 		}
 
 		for (; pick > 0; devs = devs->next, --pick);
-		pcap_t *handle = pcap_open_live(devs->name, 65536, 0, 1000, errbuf); 
+		pcap_t *handle = pcap_open_live(devs->name, 65536, 1, 1000, errbuf); 
 
 		if (handle == nullptr)
 		{

@@ -2,6 +2,7 @@
 #define FRAME_H
 
 #include <cstdint>
+#include <pcap.h>
 
 
 struct ip_address
@@ -58,5 +59,9 @@ struct frame
 	udp_header udp;
 	data_t     data;
 };
+
+
+void send_packet(pcap_t *handle, const char *mac, data_t data);
+
 
 #endif
