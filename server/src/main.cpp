@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 		data.push_back(d2);
 
 		threads.emplace_back(thread(worker, (void*)&data[i - 2]));
-		//threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
+		threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
 	}
 
 	for (auto it = threads.begin(); it != threads.end(); ++it)
