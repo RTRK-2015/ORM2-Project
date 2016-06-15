@@ -14,6 +14,8 @@ class thread
 {
 public:
   thread(void* (*)(void *), void *);
+  thread(thread&& src);
+
   ~thread();
 
   void join();

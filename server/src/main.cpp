@@ -23,6 +23,8 @@ struct Data
 	pcap_t *handle;
 	const char *mac;
 	vector<SendState> state;
+	string filename;
+	size_t size;
 };
 
 
@@ -33,6 +35,28 @@ mutex m;
 void* worker(void *handle)
 {
 	Data data = *(Data*)handle;
+	ifstream file(data.filename, ios::binary);
+
+	while (true)
+	{
+		m.lock();
+		auto it = find(data.state.begin(), data.state.end(), UNSENT);
+		if (it == data.state.end())
+			break;
+		*it = CONFIRMED;
+		m.unlock();
+
+		auto idx = distance(data.state.begin(), it);
+		file.seekg(1024 * idx);
+
+		data_t d;
+		d.no = idx;
+		d.filesize = data.size;
+		file.read((char*)&d.data, 1024);
+		d.datasize = file.gcount();
+
+		send_packet(data.handle, data.mac, d);
+	}
 
 	return nullptr;
 }
@@ -43,8 +67,7 @@ int main(int argc, char *argv[])
 {
 	char errbuf[PCAP_ERRBUF_SIZE];
 
-	/*ifstream file(argv[1], ios::binary);
-	auto size = filesize(argv[1]);*/
+	auto size = filesize(argv[1]);
 	
 	pcap_if_t *devs;
 	pcap_findalldevs(&devs, errbuf);
@@ -56,26 +79,20 @@ int main(int argc, char *argv[])
 	vector<thread> threads;
 	vector<vector<SendState>> state;
 
-	data_t d;
-	d.crc = 0xB00B;
-	d.no = 0x55555555;
-	strcpy((char *)d.data, "Hello, fucktards");
-
-	send_packet(handle1, "A0481C87B1E5", d);
-	/*for (int i = 2; i < argc; ++i)
+	for (int i = 2; i < argc; ++i)
 	{
-		state.push_back(vector<SendState>(size / 1024));
+		state.push_back(vector<SendState>(ceil(size / 1024.0)));
 
-		Data d1 = { handle1, argv[i], state[i - 2] };
+		Data d1 = { handle1, argv[i], state[i - 2], argv[1], size };
 		data.push_back(d1);
 
-		Data d2 = { handle2, argv[i], state[i - 2] };
+		Data d2 = { handle2, argv[i], state[i - 2], argv[1], size };
 		data.push_back(d2);
 
-		threads.push_back(thread(worker, (void*)&data[i]));
-		threads.push_back(thread(worker, (void*)&data[i + 1]));
+		threads.emplace_back(thread(worker, (void*)&data[i - 2]));
+		//threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
 	}
 
 	for (auto it = threads.begin(); it != threads.end(); ++it)
-		it->join();*/
+		it->join();
 }

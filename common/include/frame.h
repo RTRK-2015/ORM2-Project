@@ -5,9 +5,10 @@
 #include <pcap.h>
 
 
-#ifndef WIN32
-#pragma pack(push, old, 1)
-#endif WIN32
+#ifdef WIN32
+#pragma pack(push, r1, 1)
+#endif
+
 
 struct ip_address
 {
@@ -41,7 +42,6 @@ struct ip_header
 	std::uint16_t crc;
 	ip_address srcaddr;
 	ip_address dstaddr;
-	std::uint32_t op_pad;
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
@@ -63,8 +63,9 @@ __attribute__((packed))
 struct data_t
 {
 	std::uint32_t no;
+	std::uint32_t filesize;
+	std::uint16_t datasize;
 	std::uint8_t data[1024];
-	std::uint16_t crc;
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
@@ -84,10 +85,10 @@ __attribute__((packed))
 ;
 
 #ifdef WIN32
-#pragma pack(pop, old)
+#pragma pack(pop, r1)
 #endif
 
-void send_packet(pcap_t *handle, const char *mac, data_t data);
+int send_packet(pcap_t *handle, const char *mac, data_t data);
 
 
 #endif

@@ -15,10 +15,14 @@ struct thread::impl
 
 
 thread::thread(void* (*f)(void *), void *data)
-  : pimpl(make_unique(f, data))
+  : pimpl(new thread::impl(f, data))
 {
 }
 
+thread::thread(thread&& src)
+	: pimpl(src.pimpl.release())
+{
+}
 
 thread::~thread()
 {

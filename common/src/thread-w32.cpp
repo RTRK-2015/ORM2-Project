@@ -3,6 +3,7 @@
 #if U_WOT_M8_MODE == 1 && (defined(WIN32) || defined(_WIN32))
 #include "thread.h"
 #include <Windows.h>
+#include <utility>
 #include <memory>
 
 using namespace std;
@@ -26,6 +27,11 @@ struct thread::impl
 
 thread::thread(void* (*f)(void *), void *data)
   : pimpl(new thread::impl(f, data))
+{
+}
+
+thread::thread(thread&& src)
+	: pimpl(src.pimpl.release())
 {
 }
 
