@@ -1,7 +1,5 @@
 #include "frame.h"
 #include <pcap.h>
-#include <stdlib.h>
-#include <stddef.h>
 
 
 uint16_t htons1(uint16_t x)
@@ -52,7 +50,6 @@ void send_packet(pcap_t *handle, const char *mac, data_t data)
 	f.ip.srcaddr.bytes[3] = 0;
 	memset(&f.ip.dstaddr, 0, 4);
 	f.ip.op_pad = 0;
-	printf("%d\n", offsetof(frame, ip));
 
 	// UDP
 	f.udp.dstport = htons1(1536);
