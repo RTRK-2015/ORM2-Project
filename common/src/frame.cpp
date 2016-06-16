@@ -12,12 +12,12 @@ int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t d
 	for (int i = 0; i < 6; ++i)
 	{
 		char hex[3] = "";
-		memcpy(hex, dstmac + 2 * i, 3);
+		memcpy(hex, dstmac + 3 * i, 3);
 		hex[2] = '\0';
 		realdstmac[i] = (char)strtol(hex, nullptr, 16);
 
-		memcpy(hex, srcmac + 2 * i, 3);
-		hex[3] = '\0';
+		memcpy(hex, srcmac + 3 * i, 3);
+		hex[2] = '\0';
 		realsrcmac[i] = (char)strtol(hex, nullptr, 16);
 	}
 
