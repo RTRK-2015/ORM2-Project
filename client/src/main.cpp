@@ -25,6 +25,7 @@ void *worker(void *handle)
 {
 	data d = *(data*) handle;
 
+
 	pcap_pkthdr *header;
 	const u_char *pkt_data;
 
@@ -50,7 +51,6 @@ void *worker(void *handle)
 			break;
 
 	}
-
 
 	return nullptr;
 }
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 	th1.join();
 	//th2.join();
 
-
 	ofstream file(argv[1], ios::binary);
 	file.write(buf, bufsize);
+
 }
