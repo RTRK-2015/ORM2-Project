@@ -81,7 +81,7 @@ void* worker(void *handle)
 	pcap_setfilter(h, &fcode);
 
 	HandlerData hdata = { &h, data.state };
-	//thread handlerth(handler, (void*)&hdata);
+	thread handlerth(handler, (void*)&hdata);
 
 	auto sent = 0;
 
