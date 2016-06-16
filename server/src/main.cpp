@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 
 	for (int i = 2; i < argc; ++i)
 	{
-		state.push_back(vector<SendState>(ceil(size / DATA_SIZE.0)));
+		state.push_back(vector<SendState>(ceil(size / DATA_SIZE * 1.0)));
 
 		Data d1 = { handle1, argv[i], state[i - 2], argv[1], size };
 		data.push_back(d1);
