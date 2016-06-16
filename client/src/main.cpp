@@ -43,7 +43,7 @@ void *worker(void *handle)
 			buf = new char[bufsize];
 		}
 
-		memcpy(buf + 1024 * f.data.no, f.data.data, f.data.datasize);
+		memcpy(buf + DATA_SIZE * f.data.no, f.data.data, f.data.datasize);
 
 		full += f.data.datasize;
 		

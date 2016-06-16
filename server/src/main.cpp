@@ -47,15 +47,15 @@ void* worker(void *handle)
 		m.unlock();
 
 		auto idx = distance(data.state.begin(), it);
-		file.seekg(1024 * idx);
+		file.seekg(DATA_SIZE * idx);
 
 		data_t d;
 		d.no = idx;
 		d.filesize = data.size;
-		file.read((char*)&d.data, 1024);
+		file.read((char*)&d.data, DATA_SIZE);
 		d.datasize = file.gcount();
 
-		send_packet(data.handle, data.mac, d);
+		int a = send_packet(data.handle, data.mac, d);
 	}
 
 	return nullptr;
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 
 	for (int i = 2; i < argc; ++i)
 	{
-		state.push_back(vector<SendState>(ceil(size / 1024.0)));
+		state.push_back(vector<SendState>(ceil(size / DATA_SIZE.0)));
 
 		Data d1 = { handle1, argv[i], state[i - 2], argv[1], size };
 		data.push_back(d1);
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 		data.push_back(d2);
 
 		threads.emplace_back(thread(worker, (void*)&data[i - 2]));
-		threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
+		//threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
 	}
 
 	for (auto it = threads.begin(); it != threads.end(); ++it)

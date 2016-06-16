@@ -5,6 +5,9 @@
 #include <pcap.h>
 
 
+#define DATA_SIZE 256
+
+
 #ifdef WIN32
 #pragma pack(push, r1, 1)
 #endif
@@ -65,7 +68,7 @@ struct data_t
 	std::uint32_t no;
 	std::uint32_t filesize;
 	std::uint16_t datasize;
-	std::uint8_t data[1024];
+	std::uint8_t data[DATA_SIZE];
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
