@@ -5,7 +5,7 @@
 #include <pcap.h>
 
 
-#define DATA_SIZE 256
+#define DATA_SIZE 1400
 
 
 #ifdef WIN32
@@ -91,7 +91,7 @@ __attribute__((packed))
 #pragma pack(pop, r1)
 #endif
 
-int send_packet(pcap_t *handle, const char *mac, data_t data);
+int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t data);
 
 
 #endif

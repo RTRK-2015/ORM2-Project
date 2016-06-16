@@ -1,3 +1,4 @@
+#include <iostream>
 #include <fstream>
 #include <algorithm>
 #include <vector>
@@ -18,11 +19,14 @@ enum SendState
 	CONFIRMED
 };
 
+
 struct Data
 {
-	pcap_t *handle;
-	const char *mac;
-	vector<SendState> state;
+	int id;
+	pcap_if_t *handle;
+	const char *srcmac;
+	const char *dstmac;
+	vector<pair<int, SendState>>& state;
 	string filename;
 	size_t size;
 };
@@ -34,16 +38,25 @@ mutex m;
 
 void* worker(void *handle)
 {
+	static char errbuf[PCAP_ERRBUF_SIZE];
+
 	Data data = *(Data*)handle;
 	ifstream file(data.filename, ios::binary);
+
+	pcap_t *h = pcap_open_live(data.handle->name, 65536, 1, -1, errbuf);
+
+	auto sent = 0;
 
 	while (true)
 	{
 		m.lock();
-		auto it = find(data.state.begin(), data.state.end(), UNSENT);
+		auto it = find_if(data.state.begin(), data.state.end(), [](const pair<int, SendState>& s)
+		{
+			return s.first == 0 && s.second == UNSENT;
+		});
 		if (it == data.state.end())
 			break;
-		*it = CONFIRMED;
+		it->second = SENT;
 		m.unlock();
 
 		auto idx = distance(data.state.begin(), it);
@@ -55,7 +68,14 @@ void* worker(void *handle)
 		file.read((char*)&d.data, DATA_SIZE);
 		d.datasize = file.gcount();
 
-		int a = send_packet(data.handle, data.mac, d);
+		int a = send_packet(h, data.srcmac, data.dstmac, d);
+
+		m.lock();
+		++sent;
+		printf("a: %d, Handle %X, sent: %d\n", a, data.handle, sent);
+		m.unlock();
+
+		Sleep(1);
 	}
 
 	return nullptr;
@@ -72,27 +92,29 @@ int main(int argc, char *argv[])
 	pcap_if_t *devs;
 	pcap_findalldevs(&devs, errbuf);
 
-	pcap_t *handle1 = select_device(devs);
-	pcap_t *handle2 = select_device(devs);
+	pcap_if_t *handle1 = select_device(devs);
+	pcap_if_t *handle2 = select_device(devs);
 
 	vector<Data> data;
 	vector<thread> threads;
-	vector<vector<SendState>> state;
+	vector<vector<pair<int, SendState>>> state;
 
-	for (int i = 2; i < argc; ++i)
+	for (int i = 2; i < argc - 3; ++i)
 	{
-		state.push_back(vector<SendState>(ceil(size / DATA_SIZE * 1.0)));
+		state.push_back(vector<pair<int, SendState>>(ceil(size / (DATA_SIZE * 1.0))));
 
-		Data d1 = { handle1, argv[i], state[i - 2], argv[1], size };
+		Data d1 = { 1, handle1, argv[2], argv[2 * i], state[i - 2], argv[1], size };
 		data.push_back(d1);
 
-		Data d2 = { handle2, argv[i], state[i - 2], argv[1], size };
+		Data d2 = { 2, handle2, argv[3], argv[2 * i + 1], state[i - 2], argv[1], size };
 		data.push_back(d2);
 
 		threads.emplace_back(thread(worker, (void*)&data[i - 2]));
-		//threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
+		threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
 	}
 
 	for (auto it = threads.begin(); it != threads.end(); ++it)
 		it->join();
+
+	pcap_freealldevs(devs);
 }

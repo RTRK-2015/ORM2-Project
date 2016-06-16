@@ -5,7 +5,7 @@
 #include <pcap.h>
 
 
-pcap_t* select_device(pcap_if_t *devs);
+pcap_if_t* select_device(pcap_if_t *devs);
 
 
 #endif

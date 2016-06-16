@@ -2,26 +2,26 @@
 #include <pcap.h>
 
 
-int send_packet(pcap_t *handle, const char *mac, data_t data)
+int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t data)
 {
 	frame f;
 
-	char dstmac[6];
+	char realdstmac[6];
+	char realsrcmac[6];
+
 	for (int i = 0; i < 6; ++i)
 	{
 		char hex[3] = "";
-		memcpy(hex, mac + 2 * i, 2);
-		dstmac[i] = (char)strtol(hex, nullptr, 16);
+		memcpy(hex, dstmac + 2 * i, 2);
+		realdstmac[i] = (char)strtol(hex, nullptr, 16);
+
+		memcpy(hex, srcmac + 2 * i, 2);
+		realsrcmac[i] = (char)strtol(hex, nullptr, 16);
 	}
 
 	// ETH
-	memcpy(&f.eth.dstmac, dstmac, 6);
-	f.eth.srcmac[0] = 0xA0;
-	f.eth.srcmac[1] = 0x48;
-	f.eth.srcmac[2] = 0x1C;
-	f.eth.srcmac[3] = 0x8A;
-	f.eth.srcmac[4] = 0x21;
-	f.eth.srcmac[5] = 0xBA;
+	memcpy(&f.eth.dstmac, realdstmac, 6);
+	memcpy(&f.eth.srcmac, realsrcmac, 6);
 	f.eth.type = htons(0x0800);
 
 	// IP

@@ -4,7 +4,7 @@
 using namespace std;
 
 
-pcap_t* select_device(pcap_if_t *devs)
+pcap_if_t* select_device(pcap_if_t *devs)
 {
 	while (true)
 	{
@@ -31,17 +31,6 @@ pcap_t* select_device(pcap_if_t *devs)
 		}
 
 		for (; pick > 0; devs = devs->next, --pick);
-		pcap_t *handle = pcap_open_live(devs->name, 65536, 1, 1000, errbuf); 
-
-		if (handle == nullptr)
-		{
-			cerr << "Cannot open target device!" << endl;
-			continue;
-		}
-		else
-		{
-			cout << endl;
-			return handle;
-		}
+		return devs;
 	}
 }
