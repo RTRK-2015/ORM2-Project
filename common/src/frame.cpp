@@ -71,7 +71,7 @@ int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, std:
 		realdstmac[i] = (char)strtol(hex, nullptr, 16);
 
 		memcpy(hex, srcmac + 2 * i, 3);
-		hex[3] = '\0';
+		hex[2] = '\0';
 		realsrcmac[i] = (char)strtol(hex, nullptr, 16);
 	}
 
