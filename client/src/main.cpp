@@ -14,10 +14,11 @@ mutex m;
 struct data
 {
 	pcap_if_t *handle;
-	const char* mac;
+	const char* srcmac;
+	const char* dstmac;
 };
 
-static const char packet_filter[] = "dst host 0.0.0.0";
+static char *packet_filter;
 char* buf = nullptr;
 int bufsize = 1;
 int full = 0;
@@ -67,6 +68,7 @@ void *worker(void *handle)
 		m.unlock();
 
 		memcpy(buf + DATA_SIZE * f.data.no, f.data.data, f.data.datasize);
+		int mrs = send_ack_packet(h, d.srcmac, d.dstmac, f.data.no);
 
 		m.lock();
 		full += f.data.datasize;
@@ -82,7 +84,8 @@ int main(int argc, char *argv[])
 {
 	char errbuf[PCAP_ERRBUF_SIZE];
 
-	struct bpf_program fcode1, fcode2;
+	string filt = "ether dst " + string(argv[2]) + " or ether dst " + string(argv[4]) + " and dst host 0.0.0.0";
+	packet_filter = (char*)filt.c_str();
 
 
 	pcap_if_t *devs;
@@ -94,18 +97,21 @@ int main(int argc, char *argv[])
 
 	data d1;
 	d1.handle = handle1;
-	d1.mac = argv[2];
+	d1.srcmac = argv[2];
+	d1.dstmac = argv[3];
 
 
 	data d2;
 	d2.handle = handle2;
-	d2.mac = argv[2];
+	d2.srcmac = argv[4];
+	d2.dstmac = argv[5];
+	
 
 	thread th1(worker, (void*)&d1);
-	thread th2(worker, (void*)&d2);
+	//thread th2(worker, (void*)&d2);
 	
 	th1.join();
-	th2.join();
+	//th2.join();
 
 	ofstream file(argv[1], ios::binary);
 	file.write(buf, bufsize);
