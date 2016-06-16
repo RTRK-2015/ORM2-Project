@@ -34,16 +34,33 @@ struct Data
 
 mutex m;
 
+static const char filter[] = "dst host 0.0.0.0";
+
+
+void handler(u_char *user, const struct pcap_pkthdr *h, const uint8_t *bytes)
+{
+	m.lock();
+	auto v = (vector<pair<int, SendState>>*)user;
+
+	ack_frame *f = (ack_frame*)bytes;
+	(*v)[f->no].second = CONFIRMED;
+
+	m.unlock();
+}
 
 
 void* worker(void *handle)
 {
 	static char errbuf[PCAP_ERRBUF_SIZE];
+	bpf_program fcode;
 
 	Data data = *(Data*)handle;
 	ifstream file(data.filename, ios::binary);
 
 	pcap_t *h = pcap_open_live(data.handle->name, 65536, 1, -1, errbuf);
+	pcap_compile(h, &fcode, filter, 1, 0xFFFFFF);
+	pcap_setfilter(h, &fcode);
+	pcap_loop(h, -1, handler, (u_char*)&data.state);
 
 	auto sent = 0;
 
@@ -75,7 +92,9 @@ void* worker(void *handle)
 		printf("a: %d, Handle %X, sent: %d\n", a, data.handle, sent);
 		m.unlock();
 
-		Sleep(1);
+		volatile int i;
+		for (int x = 0; x < 500000; ++x)
+			i = x;
 	}
 
 	return nullptr;

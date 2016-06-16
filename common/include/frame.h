@@ -75,6 +75,7 @@ __attribute__((packed))
 #endif
 ;
 
+
 struct frame
 {
 	eth_header eth;
@@ -87,11 +88,20 @@ __attribute__((packed))
 #endif
 ;
 
+struct ack_frame
+{
+	eth_header eth;
+	ip_header ip;
+	udp_header udp;
+	std::uint32_t no;
+};
+
 #ifdef WIN32
 #pragma pack(pop, r1)
 #endif
 
 int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t data);
+int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, std::uint32_t no);
 
 
 #endif
