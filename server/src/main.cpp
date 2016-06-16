@@ -31,21 +31,37 @@ struct Data
 	size_t size;
 };
 
+struct HandlerData
+{
+	pcap_t **handle;
+	vector<pair<int, SendState>>& state;
+};
+
 
 mutex m;
 
-static const char filter[] = "dst host 0.0.0.0";
 
-
-void handler(u_char *user, const struct pcap_pkthdr *h, const uint8_t *bytes)
+void* handler(void *hdata)
 {
-	m.lock();
-	auto v = (vector<pair<int, SendState>>*)user;
+	auto data = *(HandlerData*)hdata;
+	pcap_pkthdr *hdr;
+	const u_char *pkt_data;
 
-	ack_frame *f = (ack_frame*)bytes;
-	(*v)[f->no].second = CONFIRMED;
+	while (true)
+	{
+		int a = pcap_next_ex(*data.handle, &hdr, &pkt_data);
+		if (a < 1)
+			continue;
 
-	m.unlock();
+		m.lock();
+
+		auto frame = (ack_frame*)pkt_data;
+		data.state[frame->no].second = CONFIRMED;
+
+		m.unlock();
+	}
+
+	return nullptr;
 }
 
 
@@ -58,9 +74,14 @@ void* worker(void *handle)
 	ifstream file(data.filename, ios::binary);
 
 	pcap_t *h = pcap_open_live(data.handle->name, 65536, 1, -1, errbuf);
-	pcap_compile(h, &fcode, filter, 1, 0xFFFFFF);
+
+	string filter = "ether src " + string(data.dstmac) + " and src host 0.0.0.0";
+
+	pcap_compile(h, &fcode, filter.c_str(), 1, 0xFFFFFF);
 	pcap_setfilter(h, &fcode);
-	pcap_loop(h, -1, handler, (u_char*)&data.state);
+
+	HandlerData hdata = { &h, data.state };
+	//thread handlerth(handler, (void*)&hdata);
 
 	auto sent = 0;
 
@@ -129,7 +150,7 @@ int main(int argc, char *argv[])
 		data.push_back(d2);
 
 		threads.emplace_back(thread(worker, (void*)&data[i - 2]));
-		threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
+		//threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
 	}
 
 	for (auto it = threads.begin(); it != threads.end(); ++it)
