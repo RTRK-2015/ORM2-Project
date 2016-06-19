@@ -47,23 +47,21 @@ void *worker(void *handle)
 		{
 			for (int i = 0; i < 50; ++i)
 				send_ack_packet(h, d.srcmac, d.dstmac, (uint32_t)-1);
+
+			m.unlock();
 			return nullptr;
 		}
 		m.unlock();
 
-		m.lock();
 		int a = pcap_next_ex(h, &header, &pkt_data);
-		m.unlock();
 
 		if(a < 1)
 			continue;
 
 		frame f = *(frame*) pkt_data;
 
-		m.lock();
 		packet_count++;
 		printf("Received packets %d\n", packet_count);
-		m.unlock();
 
 		m.lock();
 		if(buf == nullptr)
@@ -113,10 +111,10 @@ int main(int argc, char *argv[])
 	
 
 	thread th1(worker, (void*)&d1);
-	thread th2(worker, (void*)&d2);
+	//thread th2(worker, (void*)&d2);
 	
 	th1.join();
-	th2.join();
+	//th2.join();
 
 	ofstream file(argv[1], ios::binary);
 	file.write(buf, bufsize);
