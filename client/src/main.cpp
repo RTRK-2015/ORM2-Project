@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <pcap.h>
 #include "select_device.h"
@@ -6,7 +7,7 @@
 #include "mutex.h"
 #include <fstream>
 #include "frame.h"
-
+#include <vector>
 using namespace std;
 
 mutex m;
@@ -23,6 +24,7 @@ char* buf = nullptr;
 int bufsize = 1;
 int full = 0;
 const u_int netmask = 0xFFFFFF; 
+vector<char> state(1);
 
 void *worker(void *handle)
 {
@@ -41,8 +43,12 @@ void *worker(void *handle)
 	while (true)
 	{
 		m.lock();
-		if(full == bufsize)
-			break;
+		if (find(state.cbegin(), state.cend(), 0) == state.cend())
+		{
+			for (int i = 0; i < 50; ++i)
+				send_ack_packet(h, d.srcmac, d.dstmac, (uint32_t)-1);
+			return nullptr;
+		}
 		m.unlock();
 
 		m.lock();
@@ -62,18 +68,17 @@ void *worker(void *handle)
 		m.lock();
 		if(buf == nullptr)
 		{
+			
 			bufsize = f.data.filesize;
 			buf = new char[bufsize];
+			state.resize(ceil(bufsize*1.0/DATA_SIZE));
+
 		}
 		m.unlock();
 
 		memcpy(buf + DATA_SIZE * f.data.no, f.data.data, f.data.datasize);
+		state[f.data.no] = 1;
 		int mrs = send_ack_packet(h, d.srcmac, d.dstmac, f.data.no);
-
-		m.lock();
-		full += f.data.datasize;
-		printf("Bufsize: %d, Full: %d\n", bufsize, full);
-		m.unlock();
 	}
 	m.unlock();
 
@@ -108,10 +113,10 @@ int main(int argc, char *argv[])
 	
 
 	thread th1(worker, (void*)&d1);
-	//thread th2(worker, (void*)&d2);
+	thread th2(worker, (void*)&d2);
 	
 	th1.join();
-	//th2.join();
+	th2.join();
 
 	ofstream file(argv[1], ios::binary);
 	file.write(buf, bufsize);
