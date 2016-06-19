@@ -32,7 +32,7 @@ int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t d
 	f.ip.tlen = htons(sizeof(frame) - sizeof(eth_header));
 	f.ip.id = 0x0000;
 	f.ip.flags_foff = 0x0000;
-	f.ip.ttl = 0xFF;
+	f.ip.ttl = 0xFF / 2;
 	f.ip.proto = 0x11;
 
 	uint32_t s = 0x4500 + (sizeof(frame) - sizeof(eth_header)) + 0xFF11;
@@ -86,7 +86,7 @@ int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, std:
 	f.ip.tlen = htons(sizeof(ack_frame) - sizeof(eth_header));
 	f.ip.id = 0x0000;
 	f.ip.flags_foff = 0x0000;
-	f.ip.ttl = 0xFF;
+	f.ip.ttl = 0xFF / 2;
 	f.ip.proto = 0x11;
 
 	uint32_t s = 0x4500 + (sizeof(ack_frame) - sizeof(eth_header)) + 0xFF11;
@@ -100,11 +100,11 @@ int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, std:
 	// UDP
 	f.udp.srcport = htons(2048);
 	f.udp.dstport = htons(1536);
-	f.udp.len = htons(sizeof(udp_header) + sizeof(data_t));
+	f.udp.len = htons(sizeof(udp_header) + sizeof(uint32_t));
 	f.udp.crc = htons(0x0000);
 
 	// DATA
 	f.no = no;
 
-	return pcap_sendpacket(handle, (const u_char*)&f, sizeof(frame));
+	return pcap_sendpacket(handle, (const u_char*)&f, sizeof(ack_frame));
 }

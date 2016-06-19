@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <vector>
 #include <pcap.h>
+#include <ctime>
 #include "select_device.h"
 #include "thread.h"
 #include "mutex.h"
@@ -20,13 +21,20 @@ enum SendState
 };
 
 
+struct State
+{
+	int id;
+	SendState ss;
+	time_t stamp;
+};
+
 struct Data
 {
 	int id;
 	pcap_if_t *handle;
 	const char *srcmac;
 	const char *dstmac;
-	vector<pair<int, SendState>>& state;
+	vector<State>& state;
 	string filename;
 	size_t size;
 };
@@ -34,7 +42,7 @@ struct Data
 struct HandlerData
 {
 	pcap_t **handle;
-	vector<pair<int, SendState>>& state;
+	vector<State>& state;
 };
 
 
@@ -49,18 +57,40 @@ void* handler(void *hdata)
 
 	while (true)
 	{
-		int a = pcap_next_ex(*data.handle, &hdr, &pkt_data);
+		/*if (find_if(
+			data.state.cbegin(), 
+			data.state.cend(), 
+			[](const State& s) { return s.ss != CONFIRMED; }) == data.state.cend()
+			)
+			break;*/
+
+		int a = data.handle != nullptr? pcap_next_ex(*data.handle, &hdr, &pkt_data) : 0;
 		if (a < 1)
 			continue;
+
+		Sleep(10);
 
 		m.lock();
 
 		auto frame = (ack_frame*)pkt_data;
-		data.state[frame->no].second = CONFIRMED;
+		 
+		if (frame->no == (uint32_t)-1)
+		{
+			for (auto it = data.state.begin(); it != data.state.end(); ++it)
+				it->ss = CONFIRMED;
+
+			m.unlock();
+			return nullptr;
+		}
+		else
+		{
+			data.state[frame->no].ss = CONFIRMED;
+		}
 
 		m.unlock();
 	}
 
+	m.unlock();
 	return nullptr;
 }
 
@@ -84,17 +114,20 @@ void* worker(void *handle)
 	thread handlerth(handler, (void*)&hdata);
 
 	auto sent = 0;
+	time_t tp = time(nullptr);
 
 	while (true)
 	{
 		m.lock();
-		auto it = find_if(data.state.begin(), data.state.end(), [](const pair<int, SendState>& s)
+		auto it = find_if(data.state.begin(), data.state.end(), [&data, &tp](const State& s)
 		{
-			return s.first == 0 && s.second == UNSENT;
+			return (s.id == 0 && s.ss == UNSENT) || (s.id == data.id && s.ss != CONFIRMED && difftime(time(nullptr), tp) > 1);
 		});
 		if (it == data.state.end())
 			break;
-		it->second = SENT;
+		it->ss = SENT;
+		it->id = data.id;
+		it->stamp = time(nullptr);
 		m.unlock();
 
 		auto idx = distance(data.state.begin(), it);
@@ -106,17 +139,29 @@ void* worker(void *handle)
 		file.read((char*)&d.data, DATA_SIZE);
 		d.datasize = file.gcount();
 
-		int a = send_packet(h, data.srcmac, data.dstmac, d);
+		int err = send_packet(h, data.srcmac, data.dstmac, d);
 
 		m.lock();
 		++sent;
-		printf("a: %d, Handle %X, sent: %d\n", a, data.handle, sent);
-		m.unlock();
+		printf("err: %d, sent: %d\n", err, sent);
+		if (err == -1)
+		{
+			do
+			{
+				printf("Sir... SIIIIIIIIIIR");
+				int d;
+				scanf("%d", &d);
+				h = pcap_open_live(data.handle->name, 65536, 1, -1, errbuf);
+			}
+			while (h == nullptr);
 
-		volatile int i;
-		for (int x = 0; x < 500000; ++x)
-			i = x;
+			pcap_compile(h, &fcode, filter.c_str(), 1, 0xFFFFFF);
+			pcap_setfilter(h, &fcode);
+		}
+		m.unlock();
 	}
+
+	m.unlock();
 
 	return nullptr;
 }
@@ -137,11 +182,11 @@ int main(int argc, char *argv[])
 
 	vector<Data> data;
 	vector<thread> threads;
-	vector<vector<pair<int, SendState>>> state;
+	vector<vector<State>> state;
 
 	for (int i = 2; i < argc - 3; ++i)
 	{
-		state.push_back(vector<pair<int, SendState>>(ceil(size / (DATA_SIZE * 1.0))));
+		state.push_back(vector<State>(ceil(size / (DATA_SIZE * 1.0))));
 
 		Data d1 = { 1, handle1, argv[2], argv[2 * i], state[i - 2], argv[1], size };
 		data.push_back(d1);
@@ -150,7 +195,7 @@ int main(int argc, char *argv[])
 		data.push_back(d2);
 
 		threads.emplace_back(thread(worker, (void*)&data[i - 2]));
-		//threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
+		threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
 	}
 
 	for (auto it = threads.begin(); it != threads.end(); ++it)
