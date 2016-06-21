@@ -15,7 +15,7 @@
 
 struct ip_address
 {
-	std::uint8_t bytes[4];
+	u_char bytes[4];
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
@@ -24,9 +24,9 @@ __attribute__((packed))
 
 struct eth_header
 {
-	std::uint8_t dstmac[6];
-	std::uint8_t srcmac[6];
-	std::uint16_t type;
+	u_char dstmac[6];
+	u_char srcmac[6];
+	u_short type;
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
@@ -35,14 +35,14 @@ __attribute__((packed))
 
 struct ip_header
 {
-	std::uint8_t ver_ihl;
-	std::uint8_t tos;
-	std::uint16_t tlen;
-	std::uint16_t id;
-	std::uint16_t flags_foff;
-	std::uint8_t ttl;
-	std::uint8_t proto;
-	std::uint16_t crc;
+	u_char ver_ihl;
+	u_char tos;
+	u_short tlen;
+	u_short id;
+	u_short flags_foff;
+	u_char ttl;
+	u_char proto;
+	u_short crc;
 	ip_address srcaddr;
 	ip_address dstaddr;
 }
@@ -53,10 +53,10 @@ __attribute__((packed))
 
 struct udp_header
 {
-	std::uint16_t srcport;
-	std::uint16_t dstport;
-	std::uint16_t len;
-	std::uint16_t crc;
+	u_short srcport;
+	u_short dstport;
+	u_short len;
+	u_short crc;
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
@@ -67,8 +67,8 @@ struct data_t
 {
 	std::uint32_t no;
 	std::uint32_t filesize;
-	std::uint16_t datasize;
-	std::uint8_t data[DATA_SIZE];
+	u_short datasize;
+	u_char data[DATA_SIZE];
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
