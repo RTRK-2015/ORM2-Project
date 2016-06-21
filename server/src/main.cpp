@@ -20,33 +20,29 @@ enum SendState
 	CONFIRMED
 };
 
-
 struct State
 {
-	int id;
 	SendState ss;
 	time_t stamp;
 };
 
 struct Data
 {
-	int id;
 	pcap_if_t *handle;
 	const char *srcmac;
 	const char *dstmac;
 	vector<State>& state;
 	string filename;
 	size_t size;
+	mutex& m;
 };
 
 struct HandlerData
 {
 	pcap_t **handle;
 	vector<State>& state;
+	mutex& m;
 };
-
-
-mutex m;
 
 
 void* handler(void *hdata)
@@ -64,13 +60,11 @@ void* handler(void *hdata)
 			)
 			break;*/
 
-		int a = data.handle != nullptr? pcap_next_ex(*data.handle, &hdr, &pkt_data) : 0;
-		if (a < 1)
+		auto err = data.handle != nullptr? pcap_next_ex(*data.handle, &hdr, &pkt_data) : 0;
+		if (err < 1)
 			continue;
 
-		Sleep(10);
-
-		m.lock();
+		data.m.lock();
 
 		auto frame = (ack_frame*)pkt_data;
 		 
@@ -79,7 +73,7 @@ void* handler(void *hdata)
 			for (auto it = data.state.begin(); it != data.state.end(); ++it)
 				it->ss = CONFIRMED;
 
-			m.unlock();
+			data.m.unlock();
 			return nullptr;
 		}
 		else
@@ -87,11 +81,8 @@ void* handler(void *hdata)
 			data.state[frame->no].ss = CONFIRMED;
 		}
 
-		m.unlock();
+		data.m.unlock();
 	}
-
-	m.unlock();
-	return nullptr;
 }
 
 
@@ -110,25 +101,24 @@ void* worker(void *handle)
 	pcap_compile(h, &fcode, filter.c_str(), 1, 0xFFFFFF);
 	pcap_setfilter(h, &fcode);
 
-	HandlerData hdata = { &h, data.state };
+	HandlerData hdata = { &h, data.state, data.m };
 	thread handlerth(handler, (void*)&hdata);
 
 	auto sent = 0;
-	time_t tp = time(nullptr);
+	auto tp = time(nullptr);
 
 	while (true)
 	{
-		m.lock();
+		data.m.lock();
 		auto it = find_if(data.state.begin(), data.state.end(), [&data, &tp](const State& s)
 		{
-			return (s.id == 0 && s.ss == UNSENT) || (s.id == data.id && s.ss != CONFIRMED && difftime(time(nullptr), tp) > 1);
+			return (s.ss == UNSENT) || (s.ss != CONFIRMED && difftime(time(nullptr), tp) > 2);
 		});
 		if (it == data.state.end())
 			break;
 		it->ss = SENT;
-		it->id = data.id;
 		it->stamp = time(nullptr);
-		m.unlock();
+		data.m.unlock();
 
 		auto idx = distance(data.state.begin(), it);
 		file.seekg(DATA_SIZE * idx);
@@ -141,7 +131,6 @@ void* worker(void *handle)
 
 		int err = send_packet(h, data.srcmac, data.dstmac, d);
 
-		m.lock();
 		++sent;
 		printf("err: %d, sent: %d\n", err, sent);
 		if (err == -1)
@@ -152,16 +141,14 @@ void* worker(void *handle)
 				int d;
 				scanf("%d", &d);
 				h = pcap_open_live(data.handle->name, 65536, 1, -1, errbuf);
-			}
-			while (h == nullptr);
+			} while (h == nullptr);
 
 			pcap_compile(h, &fcode, filter.c_str(), 1, 0xFFFFFF);
 			pcap_setfilter(h, &fcode);
 		}
-		m.unlock();
 	}
 
-	m.unlock();
+	data.m.unlock();
 
 	return nullptr;
 }
@@ -173,7 +160,7 @@ int main(int argc, char *argv[])
 	char errbuf[PCAP_ERRBUF_SIZE];
 
 	auto size = filesize(argv[1]);
-	
+
 	pcap_if_t *devs;
 	pcap_findalldevs(&devs, errbuf);
 
@@ -182,17 +169,33 @@ int main(int argc, char *argv[])
 
 	vector<Data> data;
 	vector<thread> threads;
+	vector<mutex> mutexes;
 	vector<vector<State>> state;
 
 	for (int i = 2; i < argc - 3; ++i)
 	{
-		state.push_back(vector<State>(ceil(size / (DATA_SIZE * 1.0))));
+		state.emplace_back(vector<State>(ceil(size / (DATA_SIZE * 1.0))));
+		mutexes.emplace_back(mutex());
 
-		Data d1 = { 1, handle1, argv[2], argv[2 * i], state[i - 2], argv[1], size };
-		data.push_back(d1);
+		data.emplace_back(
+			{ /* pcap handle */handle1
+			, /* srcmac eth */ argv[2]
+			, /* dstmac eth */ argv[2 * i]
+			, /* state vector ref */ state[i - 2]
+			, /* file */ argv[1]
+			, /* file size */ size
+			, /* mutex ref */ mutexes[i - 2]
+			});
 
-		Data d2 = { 2, handle2, argv[3], argv[2 * i + 1], state[i - 2], argv[1], size };
-		data.push_back(d2);
+		data.push_back(
+			{ /* pcap handle */ handle2
+			, /* srcmac wlan */ argv[3]
+			, /* dstmac wlan */ argv[2 * i + 1]
+			, /* state vector ref */ state[i - 2]
+			, /* file */ argv[1]
+			, /* file size */ size
+			, /* mutex ref*/ mutexes[i - 2]
+			});
 
 		threads.emplace_back(thread(worker, (void*)&data[i - 2]));
 		threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
