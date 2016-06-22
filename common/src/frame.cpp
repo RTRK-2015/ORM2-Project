@@ -32,10 +32,10 @@ int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t& 
 	f.ip.tlen = htons(sizeof(frame) - sizeof(eth_header));
 	f.ip.id = 0x0000;
 	f.ip.flags_foff = 0x0000;
-	f.ip.ttl = 0xFF / 2;
+	f.ip.ttl = 0x7F;
 	f.ip.proto = 0x11;
 
-	u_int s = 0x4500 + (sizeof(frame) - sizeof(eth_header)) + 0xFF11;
+	u_int s = 0x4500 + (sizeof(frame) - sizeof(eth_header)) + 0x7F11;
 	u_short u = (0xFFFF0000 & s) >> 16;
 	s = (s & 0x0000FFFF) + u;
 	f.ip.crc = htons(~(u_short)s);
@@ -86,10 +86,10 @@ int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, u_in
 	f.ip.tlen = htons(sizeof(ack_frame) - sizeof(eth_header));
 	f.ip.id = 0x0000;
 	f.ip.flags_foff = 0x0000;
-	f.ip.ttl = 0xFF / 2;
+	f.ip.ttl = 0x7F;
 	f.ip.proto = 0x11;
 
-	u_int s = 0x4500 + (sizeof(ack_frame) - sizeof(eth_header)) + 0xFF11;
+	u_int s = 0x4500 + (sizeof(ack_frame) - sizeof(eth_header)) + 0x7F11;
 	u_short u = (0xFFFF0000 & s) >> 16;
 	s = (s & 0x0000FFFF) + u;
 	f.ip.crc = htons(~(u_short)s);

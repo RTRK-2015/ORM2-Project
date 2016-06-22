@@ -70,6 +70,8 @@ void* handler(void *hdata)
 		 
 		if (frame->no == static_cast<u_int>(-1))
 		{
+			cout << "Received -1 end" << endl;
+
 			for_each(data.state.begin(), data.state.end(), [] (State& s)
 				{
 					s.ss = CONFIRMED;
@@ -78,7 +80,7 @@ void* handler(void *hdata)
 			data.m.unlock();
 			return nullptr;
 		}
-		else
+		else if (frame->no < data.state.size())
 		{
 			data.state[frame->no].ss = CONFIRMED;
 		}
@@ -115,10 +117,13 @@ void* worker(void *handle)
 		data.m.lock();
 		auto it = find_if(data.state.begin(), data.state.end(), [&data, &tp](const State& s)
 		{
-			return (s.ss == UNSENT) || (s.ss != CONFIRMED && difftime(time(nullptr), tp) > 2);
+			return (s.ss == UNSENT) || (s.ss != CONFIRMED && difftime(time(nullptr), tp) > 5);
 		});
 		if (it == data.state.end())
+		{
+			cout << "Received all" << endl;
 			break;
+		}
 		it->ss = SENT;
 		it->stamp = time(nullptr);
 		data.m.unlock();
@@ -149,9 +154,9 @@ void* worker(void *handle)
 			pcap_setfilter(h, &fcode);
 		}
 
-		const auto DELAY_AFTER = 25;
+		const auto DELAY_AFTER = 50;
 		if ((sent + 1) % DELAY_AFTER == 0)
-			delay(5);
+			delay(2);
 	}
 
 	data.m.unlock();
