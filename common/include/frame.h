@@ -4,7 +4,7 @@
 #include <pcap.h>
 
 
-#define DATA_SIZE (1500 - sizeof(eth_header) - sizeof(ip_header) - sizeof(udp_header))
+#define DATA_SIZE (1500 - sizeof(eth_header) - sizeof(ip_header) - sizeof(udp_header) - 10)
 
 
 #ifdef WIN32
