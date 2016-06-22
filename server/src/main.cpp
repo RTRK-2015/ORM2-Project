@@ -52,6 +52,10 @@ struct HandlerData
 };
 
 
+int kurac;
+bool handlerend = false;
+
+
 void* handler(void *hdata)
 {
 	auto data = *reinterpret_cast<HandlerData*>(hdata);
@@ -60,17 +64,30 @@ void* handler(void *hdata)
 
 	for (;;)
 	{
-		auto err = *data.handle != nullptr? pcap_next_ex(*data.handle, &hdr, &pkt_data) : 0;
+		data.m.lock();
+		if (handlerend)
+		{
+			data.m.unlock();
+			return nullptr;
+		}
+		data.m.unlock();
+
+		auto err = pcap_next_ex(*data.handle, &hdr, &pkt_data);
 		if (err < 1)
 			continue;
-
-		data.m.lock();
-
+	
 		auto frame = reinterpret_cast<const ack_frame*>(pkt_data);
 		 
+		if (frame->no != frame->mrs)
+		{
+			throw "JEBOTE KURAC, KAJ JE OVO";
+		}
+
+		data.m.lock();
 		if (frame->no == static_cast<u_int>(-1))
 		{
 			cout << "Received -1 end" << endl;
+			handlerend = true;
 
 			for_each(data.state.begin(), data.state.end(), [] (State& s)
 				{
@@ -83,6 +100,11 @@ void* handler(void *hdata)
 		else if (frame->no < data.state.size())
 		{
 			data.state[frame->no].ss = CONFIRMED;
+			++kurac;
+		}
+		else
+		{
+			cout << frame->no << endl;
 		}
 
 		data.m.unlock();
@@ -115,15 +137,25 @@ void* worker(void *handle)
 	for (;;)
 	{
 		data.m.lock();
+		if (find_if(data.state.cbegin(), data.state.cend(), [](const State& s)
+			{
+				return s.ss != CONFIRMED;
+			}) == data.state.cend())
+		{
+			cout << "Received all" << endl;
+			break;
+		}
+		
 		auto it = find_if(data.state.begin(), data.state.end(), [&data, &tp](const State& s)
 		{
 			return (s.ss == UNSENT) || (s.ss != CONFIRMED && difftime(time(nullptr), tp) > 5);
 		});
 		if (it == data.state.end())
 		{
-			cout << "Received all" << endl;
-			break;
+			delay(100);
+			continue;
 		}
+
 		it->ss = SENT;
 		it->stamp = time(nullptr);
 		data.m.unlock();
@@ -196,7 +228,7 @@ int main(int argc, char *argv[])
 		data.emplace_back(d2);
 
 		threads.emplace_back(thread(worker, reinterpret_cast<void*>(&data[i - 2])));
-		threads.emplace_back(thread(worker, reinterpret_cast<void*>(&data[i - 2 + 1])));
+		//threads.emplace_back(thread(worker, reinterpret_cast<void*>(&data[i - 2 + 1])));
 	}
 
 	for_each(threads.begin(), threads.end(), [] (thread& th)
@@ -204,5 +236,6 @@ int main(int argc, char *argv[])
 			th.join();
 		});
 
+	cout << kurac << endl;
 	pcap_freealldevs(devs);
 }

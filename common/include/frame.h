@@ -93,7 +93,12 @@ struct ack_frame
 	ip_header ip;
 	udp_header udp;
 	u_int no;
-};
+	u_int mrs;
+}
+#if defined(unix) || defined(__unix) || defined(__unix__)
+__attribute__((packed))
+#endif
+;
 
 #ifdef WIN32
 #pragma pack(pop, r1)
