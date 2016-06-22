@@ -13,6 +13,7 @@
 #include "mutex.h"
 #include "select_device.h"
 #include "thread.h"
+#include "delay.h"
 
 #undef max
 
@@ -45,11 +46,13 @@ void *worker(void *handle)
 {
 	data d = *(data*) handle;
 	int packet_count = 0;
+	int real_packet_count = 0;
 	pcap_pkthdr *header;
 	const u_char *pkt_data;
 	bpf_program fcode;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	double speed = 0;
+	int confirmations = 0;
 
 	pcap_t* h = pcap_open_live(d.handle->name, size, 1, -1, errbuf);
 
@@ -62,7 +65,10 @@ void *worker(void *handle)
 		if (find(state.cbegin(), state.cend(), 0) == state.cend())
 		{
 			for (int i = 0; i < 50; ++i)
+			{
+				delay(5);
 				send_ack_packet(h, d.srcmac, d.dstmac, (uint32_t)-1);
+			}
 
 			m.unlock();
 
@@ -96,11 +102,11 @@ void *worker(void *handle)
 		const int packets = 200;		
 		if((packet_count + 1) % packets == 0)
 		{
-			speed =  ((1.0 * packets * DATA_SIZE) / (1.0 * (clock() - (d.id == 1? tp1 : tp2)) / CLOCKS_PER_SEC)) / 1024;
+			speed = ((1.0 * packets * DATA_SIZE) / (1.0 * (clock() - (d.id == 1? tp1 : tp2)) / CLOCKS_PER_SEC)) / 1024;
 			(d.id == 1? tp1 : tp2) = clock();
 		}
 
-		printf("Received packets %d, Speed (kBps): %f\n", ++packet_count, speed);
+		printf("Received packets %d, Speed (kBps): %f, Confirmations: %d\n", ++packet_count, speed, confirmations);
 
 		m.lock();
 		if(buf == nullptr)
@@ -117,8 +123,12 @@ void *worker(void *handle)
 		m.unlock();
 
 		memcpy(buf + DATA_SIZE * f.data.no, f.data.data, f.data.datasize);
+		if(state[f.data.no] == 0)
+			++real_packet_count;
 		state[f.data.no] = 1;
 		err = send_ack_packet(h, d.srcmac, d.dstmac, f.data.no);
+		if(err != -1)
+			++confirmations;
 
 		if (err == -1)
 		{
@@ -139,6 +149,7 @@ void *worker(void *handle)
 
 int main(int argc, char *argv[])
 {
+	printf("Ack_frame: %d\n", sizeof(ack_frame));
 	char errbuf[PCAP_ERRBUF_SIZE];
 
 	string filt = "ether dst " + string(argv[2]) + " or ether dst " + string(argv[4]) + " and dst host 0.0.0.0";
