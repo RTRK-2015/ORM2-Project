@@ -42,66 +42,11 @@ struct Data
 	string filename;
 	size_t size;
 	mutex& m;
-};
-
-struct HandlerData
-{
-	pcap_t **handle;
-	vector<State>& state;
-	mutex& m;
-	bool& shit;
+	u_int& sent;
 };
 
 
-int kurac;
-
-
-void* handler(void *hdata)
-{
-	auto data = *reinterpret_cast<HandlerData*>(hdata);
-	pcap_pkthdr *hdr = nullptr;
-	const u_char *pkt_data = nullptr;
-
-	for (;;)
-	{
-		auto err = pcap_next_ex(*data.handle, &hdr, &pkt_data);
-		if (err < 1)
-			continue;
-	
-		auto frame = reinterpret_cast<const ack_frame*>(pkt_data);
-		 
-		if (frame->no != frame->mrs[0])
-		{
-			throw "JEBOTE KURAC, KAJ JE OVO";
-		}
-
-		data.m.lock();
-		if (frame->no == static_cast<u_int>(-1))
-		{
-			cout << "Received -1 end" << endl;
-			data.shit = true;
-
-			for_each(data.state.begin(), data.state.end(), [] (State& s)
-				{
-					s.ss = CONFIRMED;
-				});
-
-			data.m.unlock();
-			return nullptr;
-		}
-		else if (frame->no < data.state.size())
-		{
-			data.state[frame->no].ss = CONFIRMED;
-			++kurac;
-		}
-		else
-		{
-			cout << frame->no << endl;
-		}
-
-		data.m.unlock();
-	}
-}
+int confirmations;
 
 
 void* worker(void *handle)
@@ -119,33 +64,28 @@ void* worker(void *handle)
 	pcap_compile(h, &fcode, filter.c_str(), 1, NETMASK);
 	pcap_setfilter(h, &fcode);
 
-	bool sh = false;
-	HandlerData hdata = { &h, data.state, data.m, sh };
-	thread handlerth(handler, reinterpret_cast<void*>(&hdata));
-
-	auto sent = 0;
-
-	auto tp = time(nullptr);
+	auto it = data.state.begin();
+	auto tp = clock();
 
 	for (;;)
 	{
 		data.m.lock();
-		if (sh)
-			break;
+		if (it == data.state.end())
+			it = data.state.begin();
 
-		auto it = find_if(data.state.begin(), data.state.end(), [&data, &tp](const State& s)
+		it = find_if(it, data.state.end(), [&data, &tp](const State& s)
 		{
-			return (s.ss == UNSENT) || (s.ss != CONFIRMED && difftime(time(nullptr), tp) > 5);
+			return (s.ss == UNSENT) || (s.ss != CONFIRMED && (clock() - tp) > 10 * CLOCKS_PER_SEC);
 		});
+
 		if (it == data.state.end())
 		{
 			data.m.unlock();
-			delay(100);
 			continue;
 		}
 
 		it->ss = SENT;
-		it->stamp = time(nullptr);
+		it->stamp = clock();
 		data.m.unlock();
 
 		auto idx = distance(data.state.begin(), it);
@@ -159,8 +99,53 @@ void* worker(void *handle)
 
 		auto err = send_packet(h, data.srcmac, data.dstmac, d);
 
-		++sent;
-		cout << "err: " << err << ", sent: " << sent << "\n";
+		clock_t start = clock();
+
+		while (clock() - start < CLOCKS_PER_SEC / 2)
+		{
+			pcap_pkthdr hdr;
+			const u_char *pkt = pcap_next(h, &hdr);
+
+			if (pkt != nullptr)
+			{
+				auto f = reinterpret_cast<const ack_frame*>(pkt);
+
+				for (int i = 0; i < 4; ++i)
+				{
+					if (f->no != f->mrs[i])
+						continue;
+				}
+
+				if (f->no == static_cast<u_int>(-1))
+				{
+					printf("-1\n");
+					for_each(data.state.begin(), data.state.end(), [] (State& s)
+					{
+						s.ss = CONFIRMED;
+					});
+
+					data.m.unlock();
+					return nullptr;
+				}
+				else if (f->no < data.state.size() && data.state[f->no].ss != CONFIRMED)
+				{
+					++confirmations;
+					data.state[f->no].ss = CONFIRMED;
+					break;
+				}
+			}
+			else
+			{
+				continue;
+			}
+		}
+
+		data.m.lock();
+		++data.sent;
+		data.m.unlock();
+
+		printf("err: %d, sent: %d, confirmations: %d\n", err, data.sent, confirmations);
+		
 		if (err == -1)
 		{
 			do
@@ -173,14 +158,9 @@ void* worker(void *handle)
 			pcap_compile(h, &fcode, filter.c_str(), 1, NETMASK);
 			pcap_setfilter(h, &fcode);
 		}
-
-		const auto DELAY_AFTER = 50;
-		if ((sent + 1) % DELAY_AFTER == 0)
-			delay(2);
 	}
 
 	data.m.unlock();
-	handlerth.join();
 
 	return nullptr;
 }
@@ -204,20 +184,22 @@ int main(int argc, char *argv[])
 	vector<thread> threads;
 	vector<mutex> mutexes;
 	vector<vector<State>> state;
+	vector<u_int> sents;
 
 	for (int i = 2; i < argc - 3; ++i)
 	{
 		state.emplace_back(vector<State>(padded_size));
 		mutexes.emplace_back(mutex());
+		sents.emplace_back(0);
 
-		Data d1 = { handle1, argv[2], argv[2 * i], state[i - 2], argv[1], static_cast<size_t>(size), mutexes[i - 2] };
+		Data d1 = { handle1, argv[2], argv[2 * i], state[i - 2], argv[1], static_cast<size_t>(size), mutexes[i - 2], sents[i - 2] };
 		data.emplace_back(d1);
 
-		Data d2 = { handle2, argv[3], argv[2 * i + 1], state[i - 2], argv[1], static_cast<size_t>(size), mutexes[i - 2] };
+		Data d2 = { handle2, argv[3], argv[2 * i + 1], state[i - 2], argv[1], static_cast<size_t>(size), mutexes[i - 2], sents[i - 2] };
 		data.emplace_back(d2);
 
 		threads.emplace_back(thread(worker, reinterpret_cast<void*>(&data[i - 2])));
-		//threads.emplace_back(thread(worker, reinterpret_cast<void*>(&data[i - 2 + 1])));
+		threads.emplace_back(thread(worker, reinterpret_cast<void*>(&data[i - 2 + 1])));
 	}
 
 	for_each(threads.begin(), threads.end(), [] (thread& th)
@@ -225,6 +207,5 @@ int main(int argc, char *argv[])
 			th.join();
 		});
 
-	cout << kurac << endl;
 	pcap_freealldevs(devs);
 }
