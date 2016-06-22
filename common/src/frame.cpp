@@ -105,7 +105,8 @@ int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, u_in
 
 	// DATA
 	f.no = no;
-	f.mrs = no;
+	for (int i = 0; i < 4; ++i)
+		f.mrs[i] = no;
 
 	return pcap_sendpacket(handle, (const u_char*)&f, sizeof(ack_frame));
 }

@@ -78,7 +78,7 @@ void* handler(void *hdata)
 	
 		auto frame = reinterpret_cast<const ack_frame*>(pkt_data);
 		 
-		if (frame->no != frame->mrs)
+		if (frame->no != frame->mrs[0])
 		{
 			throw "JEBOTE KURAC, KAJ JE OVO";
 		}

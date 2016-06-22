@@ -93,7 +93,7 @@ struct ack_frame
 	ip_header ip;
 	udp_header udp;
 	u_int no;
-	u_int mrs;
+	u_int mrs[4];
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
