@@ -100,7 +100,7 @@ int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, u_in
 	// UDP
 	f.udp.srcport = htons(2048);
 	f.udp.dstport = htons(1536);
-	f.udp.len = htons(sizeof(udp_header) + sizeof(u_int));
+	f.udp.len = htons(sizeof(udp_header) + sizeof(f.no) + sizeof(f.mrs));
 	f.udp.crc = htons(0x0000);
 
 	// DATA
