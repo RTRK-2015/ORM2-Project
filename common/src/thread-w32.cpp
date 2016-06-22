@@ -1,7 +1,6 @@
 #include "thread.h"
 
 #if U_WOT_M8_MODE == 1 && (defined(WIN32) || defined(_WIN32))
-#include "thread.h"
 #include <Windows.h>
 #include <utility>
 #include <memory>

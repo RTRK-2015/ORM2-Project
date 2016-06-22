@@ -2,7 +2,7 @@
 #include <pcap.h>
 
 
-int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t data)
+int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t& data)
 {
 	frame f;
 
@@ -35,10 +35,10 @@ int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t d
 	f.ip.ttl = 0xFF / 2;
 	f.ip.proto = 0x11;
 
-	uint32_t s = 0x4500 + (sizeof(frame) - sizeof(eth_header)) + 0xFF11;
-	uint16_t u = (0xFFFF0000 & s) >> 16;
+	u_int s = 0x4500 + (sizeof(frame) - sizeof(eth_header)) + 0xFF11;
+	u_short u = (0xFFFF0000 & s) >> 16;
 	s = (s & 0x0000FFFF) + u;
-	f.ip.crc = htons(~(uint16_t)s);
+	f.ip.crc = htons(~(u_short)s);
 
 	memset(&f.ip.srcaddr, 0x00, 4);
 	memset(&f.ip.dstaddr, 0x00, 4);
@@ -56,7 +56,7 @@ int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t d
 }
 
 
-int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, std::uint32_t no)
+int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, u_int no)
 {
 	ack_frame f;
 
@@ -89,10 +89,10 @@ int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, std:
 	f.ip.ttl = 0xFF / 2;
 	f.ip.proto = 0x11;
 
-	uint32_t s = 0x4500 + (sizeof(ack_frame) - sizeof(eth_header)) + 0xFF11;
-	uint16_t u = (0xFFFF0000 & s) >> 16;
+	u_int s = 0x4500 + (sizeof(ack_frame) - sizeof(eth_header)) + 0xFF11;
+	u_short u = (0xFFFF0000 & s) >> 16;
 	s = (s & 0x0000FFFF) + u;
-	f.ip.crc = htons(~(uint16_t)s);
+	f.ip.crc = htons(~(u_short)s);
 
 	memset(&f.ip.srcaddr, 0x00, 4);
 	memset(&f.ip.dstaddr, 0x00, 4);
@@ -100,7 +100,7 @@ int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, std:
 	// UDP
 	f.udp.srcport = htons(2048);
 	f.udp.dstport = htons(1536);
-	f.udp.len = htons(sizeof(udp_header) + sizeof(uint32_t));
+	f.udp.len = htons(sizeof(udp_header) + sizeof(u_int));
 	f.udp.crc = htons(0x0000);
 
 	// DATA

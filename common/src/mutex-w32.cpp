@@ -1,9 +1,9 @@
 #include "mutex.h"
-#include <iostream>
 
 #if U_WOT_M8_MODE == 1 && (defined(WIN32) || defined(_WIN32))
-#include "mutex.h"
-#define WIN32_LEAN_AND_MEAN
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN 1
+#endif
 #include <Windows.h>
 #include <memory>
 
@@ -30,6 +30,12 @@ mutex::mutex()
   : pimpl(new mutex::impl())
 {
 
+}
+
+
+mutex::mutex(mutex&& src)
+	: pimpl(src.pimpl.release())
+{
 }
 
 

@@ -15,6 +15,7 @@ class mutex
 {
 public:
   mutex();
+  mutex(mutex&& src);
   ~mutex();
 
   void lock();

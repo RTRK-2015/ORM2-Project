@@ -1,13 +1,18 @@
 #include <algorithm>
+#include <fstream>
 #include <iostream>
+#include <string>
+#include <vector>
+
 #include <pcap.h>
+
+#include "frame.h"
+#include "mutex.h"
 #include "select_device.h"
 #include "thread.h"
-#include <string>
-#include "mutex.h"
-#include <fstream>
-#include "frame.h"
-#include <vector>
+
+#undef max
+
 using namespace std;
 
 mutex m;
@@ -23,7 +28,8 @@ static char *packet_filter;
 char* buf = nullptr;
 int bufsize = 1;
 int full = 0;
-const u_int netmask = 0xFFFFFF; 
+const bpf_u_int32 netmask = 0xFFFFFF; 
+const int size = 65536;
 vector<char> state(1);
 
 void *worker(void *handle)
@@ -35,12 +41,12 @@ void *worker(void *handle)
 	bpf_program fcode;
 	char errbuf[PCAP_ERRBUF_SIZE];
 
-	pcap_t* h = pcap_open_live(d.handle->name, 65536, 1, -1, errbuf);
+	pcap_t* h = pcap_open_live(d.handle->name, size, 1, -1, errbuf);
 
-	int a = pcap_compile(h, &fcode, packet_filter, 1, netmask);
-	int b = pcap_setfilter(h, &fcode);
+	pcap_compile(h, &fcode, packet_filter, 1, netmask);
+	pcap_setfilter(h, &fcode);
 
-	while (true)
+	for (;;)
 	{
 		m.lock();
 		if (find(state.cbegin(), state.cend(), 0) == state.cend())
@@ -53,10 +59,24 @@ void *worker(void *handle)
 		}
 		m.unlock();
 
-		int a = pcap_next_ex(h, &header, &pkt_data);
+		int err = pcap_next_ex(h, &header, &pkt_data);
 
-		if(a < 1)
+		if(err == 0)
 			continue;
+		if (err == -1)
+		{
+			h = nullptr;
+
+			do
+			{
+				cout << "Sir... SIIIIIIIIIIR\n";
+				cin.ignore(numeric_limits<streamsize>::max(), '\n');
+				h = pcap_open_live(d.handle->name, size, 1, -1, errbuf);
+			} while (h == nullptr);
+
+			pcap_compile(h, &fcode, packet_filter, 1, netmask);
+			pcap_setfilter(h, &fcode);
+		}
 
 		frame f = *(frame*) pkt_data;
 
@@ -69,18 +89,30 @@ void *worker(void *handle)
 			
 			bufsize = f.data.filesize;
 			buf = new char[bufsize];
-			state.resize(ceil(bufsize*1.0/DATA_SIZE));
+			state.resize((unsigned)ceil(bufsize*1.0/DATA_SIZE));
 
 		}
 		m.unlock();
 
 		memcpy(buf + DATA_SIZE * f.data.no, f.data.data, f.data.datasize);
 		state[f.data.no] = 1;
-		int mrs = send_ack_packet(h, d.srcmac, d.dstmac, f.data.no);
-	}
-	m.unlock();
+		err = send_ack_packet(h, d.srcmac, d.dstmac, f.data.no);
 
-	return nullptr;
+		if (err == -1)
+		{
+			h = nullptr;
+
+			do
+			{
+				cout << "Sir... SIIIIIIIIIIR\n";
+				cin.ignore(numeric_limits<streamsize>::max(), '\n');
+				h = pcap_open_live(d.handle->name, size, 1, -1, errbuf);
+			} while (h == nullptr);
+
+			pcap_compile(h, &fcode, packet_filter, 1, netmask);
+			pcap_setfilter(h, &fcode);
+		}
+	}
 }
 
 int main(int argc, char *argv[])

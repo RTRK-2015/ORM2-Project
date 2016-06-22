@@ -6,10 +6,8 @@ using namespace std;
 
 pcap_if_t* select_device(pcap_if_t *devs)
 {
-	while (true)
+	for (;;)
 	{
-		char errbuf[PCAP_ERRBUF_SIZE];
-
 		cout << "Available devices:" << endl;
 
 		size_t i = 0;
@@ -23,7 +21,7 @@ pcap_if_t* select_device(pcap_if_t *devs)
 			cout << endl;
 		}
 
-		size_t pick = (size_t)-1;
+		size_t pick = static_cast<size_t>(-1);
 		while (pick > i - 1)
 		{
 			cout << "Pick device [0 - " << i - 1 << "]: ";

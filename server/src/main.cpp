@@ -1,21 +1,28 @@
-#include <iostream>
-#include <fstream>
 #include <algorithm>
+#include <fstream>
+#include <limits>
+#include <iostream>
 #include <vector>
-#include <pcap.h>
+
 #include <ctime>
+
+#include <pcap.h>
+
+#include "delay.h"
+#include "frame.h"
+#include "helper.h"
+#include "mutex.h"
 #include "select_device.h"
 #include "thread.h"
-#include "mutex.h"
-#include "helper.h"
-#include "frame.h"
+
+#undef max
 
 using namespace std;
 
 
 enum SendState
 {
-	UNSENT = 0,
+	UNSENT,
 	SENT,
 	CONFIRMED
 };
@@ -47,31 +54,26 @@ struct HandlerData
 
 void* handler(void *hdata)
 {
-	auto data = *(HandlerData*)hdata;
-	pcap_pkthdr *hdr;
-	const u_char *pkt_data;
+	auto data = *reinterpret_cast<HandlerData*>(hdata);
+	pcap_pkthdr *hdr = nullptr;
+	const u_char *pkt_data = nullptr;
 
-	while (true)
+	for (;;)
 	{
-		/*if (find_if(
-			data.state.cbegin(), 
-			data.state.cend(), 
-			[](const State& s) { return s.ss != CONFIRMED; }) == data.state.cend()
-			)
-			break;*/
-
-		auto err = data.handle != nullptr? pcap_next_ex(*data.handle, &hdr, &pkt_data) : 0;
+		auto err = *data.handle != nullptr? pcap_next_ex(*data.handle, &hdr, &pkt_data) : 0;
 		if (err < 1)
 			continue;
 
 		data.m.lock();
 
-		auto frame = (ack_frame*)pkt_data;
+		auto frame = reinterpret_cast<const ack_frame*>(pkt_data);
 		 
-		if (frame->no == (uint32_t)-1)
+		if (frame->no == static_cast<u_int>(-1))
 		{
-			for (auto it = data.state.begin(); it != data.state.end(); ++it)
-				it->ss = CONFIRMED;
+			for_each(data.state.begin(), data.state.end(), [] (State& s)
+				{
+					s.ss = CONFIRMED;
+				});
 
 			data.m.unlock();
 			return nullptr;
@@ -89,25 +91,26 @@ void* handler(void *hdata)
 void* worker(void *handle)
 {
 	static char errbuf[PCAP_ERRBUF_SIZE];
-	bpf_program fcode;
+	static const bpf_u_int32 NETMASK = 0xFFFFFF;
+	static const int SIZE = numeric_limits<u_short>::max();
 
-	Data data = *(Data*)handle;
+	auto data = *reinterpret_cast<Data*>(handle);
 	ifstream file(data.filename, ios::binary);
-
-	pcap_t *h = pcap_open_live(data.handle->name, 65536, 1, -1, errbuf);
+	pcap_t *h = pcap_open_live(data.handle->name, SIZE, 1, -1, errbuf);
 
 	string filter = "ether src " + string(data.dstmac) + " and src host 0.0.0.0";
-
-	pcap_compile(h, &fcode, filter.c_str(), 1, 0xFFFFFF);
+	bpf_program fcode;
+	pcap_compile(h, &fcode, filter.c_str(), 1, NETMASK);
 	pcap_setfilter(h, &fcode);
 
 	HandlerData hdata = { &h, data.state, data.m };
-	thread handlerth(handler, (void*)&hdata);
+	thread handlerth(handler, reinterpret_cast<void*>(&hdata));
 
 	auto sent = 0;
+
 	auto tp = time(nullptr);
 
-	while (true)
+	for (;;)
 	{
 		data.m.lock();
 		auto it = find_if(data.state.begin(), data.state.end(), [&data, &tp](const State& s)
@@ -126,26 +129,29 @@ void* worker(void *handle)
 		data_t d;
 		d.no = idx;
 		d.filesize = data.size;
-		file.read((char*)&d.data, DATA_SIZE);
-		d.datasize = file.gcount();
+		file.read(d.data, DATA_SIZE);
+		d.datasize = static_cast<u_short>(file.gcount());
 
-		int err = send_packet(h, data.srcmac, data.dstmac, d);
+		auto err = send_packet(h, data.srcmac, data.dstmac, d);
 
 		++sent;
-		printf("err: %d, sent: %d\n", err, sent);
+		cout << "err: " << err << ", sent: " << sent << "\n";
 		if (err == -1)
 		{
 			do
 			{
-				printf("Sir... SIIIIIIIIIIR");
-				int d;
-				scanf("%d", &d);
-				h = pcap_open_live(data.handle->name, 65536, 1, -1, errbuf);
+				cout << "Sir... SIIIIIIIIIIR\n";
+				cin.ignore(numeric_limits<streamsize>::max(), '\n');
+				h = pcap_open_live(data.handle->name, SIZE, 1, -1, errbuf);
 			} while (h == nullptr);
 
-			pcap_compile(h, &fcode, filter.c_str(), 1, 0xFFFFFF);
+			pcap_compile(h, &fcode, filter.c_str(), 1, NETMASK);
 			pcap_setfilter(h, &fcode);
 		}
+
+		const auto DELAY_AFTER = 25;
+		if ((sent + 1) % DELAY_AFTER == 0)
+			delay(5);
 	}
 
 	data.m.unlock();
@@ -159,7 +165,8 @@ int main(int argc, char *argv[])
 {
 	char errbuf[PCAP_ERRBUF_SIZE];
 
-	auto size = filesize(argv[1]);
+	const auto size = static_cast<size_t>(filesize(argv[1]));
+	const auto padded_size = static_cast<decltype(size)>(ceil(size * 1.0 / DATA_SIZE));
 
 	pcap_if_t *devs;
 	pcap_findalldevs(&devs, errbuf);
@@ -174,35 +181,23 @@ int main(int argc, char *argv[])
 
 	for (int i = 2; i < argc - 3; ++i)
 	{
-		state.emplace_back(vector<State>(ceil(size / (DATA_SIZE * 1.0))));
+		state.emplace_back(vector<State>(padded_size));
 		mutexes.emplace_back(mutex());
 
-		data.emplace_back(
-			{ /* pcap handle */handle1
-			, /* srcmac eth */ argv[2]
-			, /* dstmac eth */ argv[2 * i]
-			, /* state vector ref */ state[i - 2]
-			, /* file */ argv[1]
-			, /* file size */ size
-			, /* mutex ref */ mutexes[i - 2]
-			});
+		Data d1 = { handle1, argv[2], argv[2 * i], state[i - 2], argv[1], static_cast<size_t>(size), mutexes[i - 2] };
+		data.emplace_back(d1);
 
-		data.push_back(
-			{ /* pcap handle */ handle2
-			, /* srcmac wlan */ argv[3]
-			, /* dstmac wlan */ argv[2 * i + 1]
-			, /* state vector ref */ state[i - 2]
-			, /* file */ argv[1]
-			, /* file size */ size
-			, /* mutex ref*/ mutexes[i - 2]
-			});
+		Data d2 = { handle2, argv[3], argv[2 * i + 1], state[i - 2], argv[1], static_cast<size_t>(size), mutexes[i - 2] };
+		data.emplace_back(d2);
 
-		threads.emplace_back(thread(worker, (void*)&data[i - 2]));
-		threads.emplace_back(thread(worker, (void*)&data[i - 2 + 1]));
+		threads.emplace_back(thread(worker, reinterpret_cast<void*>(&data[i - 2])));
+		threads.emplace_back(thread(worker, reinterpret_cast<void*>(&data[i - 2 + 1])));
 	}
 
-	for (auto it = threads.begin(); it != threads.end(); ++it)
-		it->join();
+	for_each(threads.begin(), threads.end(), [] (thread& th)
+		{
+			th.join();
+		});
 
 	pcap_freealldevs(devs);
 }

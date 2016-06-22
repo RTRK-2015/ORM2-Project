@@ -1,11 +1,10 @@
 #ifndef FRAME_H
 #define FRAME_H
 
-#include <cstdint>
 #include <pcap.h>
 
 
-#define DATA_SIZE 1400
+#define DATA_SIZE (1500 - sizeof(eth_header) - sizeof(ip_header) - sizeof(udp_header))
 
 
 #ifdef WIN32
@@ -65,10 +64,10 @@ __attribute__((packed))
 
 struct data_t
 {
-	std::uint32_t no;
-	std::uint32_t filesize;
+	u_int no;
+	u_int filesize;
 	u_short datasize;
-	u_char data[DATA_SIZE];
+	char data[DATA_SIZE];
 }
 #if defined(unix) || defined(__unix) || defined(__unix__)
 __attribute__((packed))
@@ -93,15 +92,15 @@ struct ack_frame
 	eth_header eth;
 	ip_header ip;
 	udp_header udp;
-	std::uint32_t no;
+	u_int no;
 };
 
 #ifdef WIN32
 #pragma pack(pop, r1)
 #endif
 
-int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t data);
-int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, std::uint32_t no);
+int send_packet(pcap_t *handle, const char *srcmac, const char *dstmac, data_t& data);
+int send_ack_packet(pcap_t *handle, const char *srcmac, const char *dstmac, u_int no);
 
 
 #endif
