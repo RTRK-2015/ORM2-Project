@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 #include <cstdint>
 
@@ -15,6 +16,7 @@
 
 #undef max
 
+
 using namespace std;
 
 mutex m;
@@ -24,6 +26,7 @@ struct data
 	pcap_if_t *handle;
 	const char* srcmac;
 	const char* dstmac;
+	int id;
 };
 
 static char *packet_filter;
@@ -33,6 +36,10 @@ int full = 0;
 const bpf_u_int32 netmask = 0xFFFFFF; 
 const int size = 65536;
 vector<char> state(1);
+clock_t start1;
+clock_t start2;
+clock_t tp1;
+clock_t tp2;
 
 void *worker(void *handle)
 {
@@ -42,6 +49,7 @@ void *worker(void *handle)
 	const u_char *pkt_data;
 	bpf_program fcode;
 	char errbuf[PCAP_ERRBUF_SIZE];
+	double speed = 0;
 
 	pcap_t* h = pcap_open_live(d.handle->name, size, 1, -1, errbuf);
 
@@ -57,6 +65,9 @@ void *worker(void *handle)
 				send_ack_packet(h, d.srcmac, d.dstmac, (uint32_t)-1);
 
 			m.unlock();
+
+			float total_time =  1.0 * (clock() - (d.id == 1? start1 : start2))/ CLOCKS_PER_SEC;
+			printf("Total time:  %f, Avg speed: %f\n", total_time, packet_count * DATA_SIZE / total_time / 1024);
 			return nullptr;
 		}
 		m.unlock();
@@ -82,8 +93,14 @@ void *worker(void *handle)
 
 		frame f = *(frame*) pkt_data;
 
-		packet_count++;
-		printf("Received packets %d\n", packet_count);
+		const int packets = 200;		
+		if((packet_count + 1) % packets == 0)
+		{
+			speed =  ((1.0 * packets * DATA_SIZE) / (1.0 * (clock() - (d.id == 1? tp1 : tp2)) / CLOCKS_PER_SEC)) / 1024;
+			(d.id == 1? tp1 : tp2) = clock();
+		}
+
+		printf("Received packets %d, Speed (kBps): %f\n", ++packet_count, speed);
 
 		m.lock();
 		if(buf == nullptr)
@@ -92,7 +109,10 @@ void *worker(void *handle)
 			bufsize = f.data.filesize;
 			buf = new char[bufsize];
 			state.resize((unsigned)ceil(bufsize*1.0/DATA_SIZE));
-
+			tp1 = clock();
+			tp2 = clock();
+			start1 = clock();
+			start2 = clock();
 		}
 		m.unlock();
 
@@ -136,19 +156,21 @@ int main(int argc, char *argv[])
 	d1.handle = handle1;
 	d1.srcmac = argv[2];
 	d1.dstmac = argv[3];
+	d1.id = 1;
 
 
 	data d2;
 	d2.handle = handle2;
 	d2.srcmac = argv[4];
 	d2.dstmac = argv[5];
+	d2.id = 2;
 	
 
 	thread th1(worker, (void*)&d1);
-	//thread th2(worker, (void*)&d2);
+	thread th2(worker, (void*)&d2);
 	
 	th1.join();
-	//th2.join();
+	th2.join();
 
 	ofstream file(argv[1], ios::binary);
 	file.write(buf, bufsize);
