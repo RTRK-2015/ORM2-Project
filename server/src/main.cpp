@@ -49,11 +49,11 @@ struct HandlerData
 	pcap_t **handle;
 	vector<State>& state;
 	mutex& m;
+	bool& shit;
 };
 
 
 int kurac;
-bool handlerend = false;
 
 
 void* handler(void *hdata)
@@ -64,14 +64,6 @@ void* handler(void *hdata)
 
 	for (;;)
 	{
-		data.m.lock();
-		if (handlerend)
-		{
-			data.m.unlock();
-			return nullptr;
-		}
-		data.m.unlock();
-
 		auto err = pcap_next_ex(*data.handle, &hdr, &pkt_data);
 		if (err < 1)
 			continue;
@@ -87,7 +79,7 @@ void* handler(void *hdata)
 		if (frame->no == static_cast<u_int>(-1))
 		{
 			cout << "Received -1 end" << endl;
-			handlerend = true;
+			data.shit = true;
 
 			for_each(data.state.begin(), data.state.end(), [] (State& s)
 				{
@@ -127,7 +119,8 @@ void* worker(void *handle)
 	pcap_compile(h, &fcode, filter.c_str(), 1, NETMASK);
 	pcap_setfilter(h, &fcode);
 
-	HandlerData hdata = { &h, data.state, data.m };
+	bool sh = false;
+	HandlerData hdata = { &h, data.state, data.m, sh };
 	thread handlerth(handler, reinterpret_cast<void*>(&hdata));
 
 	auto sent = 0;
@@ -137,21 +130,16 @@ void* worker(void *handle)
 	for (;;)
 	{
 		data.m.lock();
-		if (find_if(data.state.cbegin(), data.state.cend(), [](const State& s)
-			{
-				return s.ss != CONFIRMED;
-			}) == data.state.cend())
-		{
-			cout << "Received all" << endl;
+		if (sh)
 			break;
-		}
-		
+
 		auto it = find_if(data.state.begin(), data.state.end(), [&data, &tp](const State& s)
 		{
 			return (s.ss == UNSENT) || (s.ss != CONFIRMED && difftime(time(nullptr), tp) > 5);
 		});
 		if (it == data.state.end())
 		{
+			data.m.unlock();
 			delay(100);
 			continue;
 		}
@@ -192,6 +180,7 @@ void* worker(void *handle)
 	}
 
 	data.m.unlock();
+	handlerth.join();
 
 	return nullptr;
 }
